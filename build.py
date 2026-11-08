@@ -1,11 +1,17 @@
 from pathlib import Path
-import re, html
+import re, html, sys
 import markdown
 ROOT=Path(__file__).resolve().parent
-src=(ROOT/'editions/001.md').read_text(encoding='utf-8')
+edition=sys.argv[1] if len(sys.argv)>1 else '001'
+if not re.fullmatch(r'\d{3}',edition): raise ValueError('Expected three-digit edition')
+src=(ROOT/f'editions/{edition}.md').read_text(encoding='utf-8')
+heading=src.splitlines()[0].removeprefix('# ')
+subtitle=next(line[3:] for line in src.splitlines() if line.startswith('## '))
+page_title=html.escape(heading+' — '+subtitle)
+date_label=html.escape(next((line.strip('*') for line in src.splitlines() if line.startswith('**') and 'Lecture' in line),''))
 src=src.replace('*Numéro préparé localement. Ni publication Web ni programmation hebdomadaire activée.*','*Édition pilote publiée pour lecture multi-appareils. Aucune programmation hebdomadaire activée.*')
 (ROOT/'editions').mkdir(exist_ok=True)
-(ROOT/'editions/001.md').write_text(src,encoding='utf-8')
+(ROOT/f'editions/{edition}.md').write_text(src,encoding='utf-8')
 links=dict(re.findall(r'^\[(\d+)\] (https?://\S+)',src,re.M))
 names={'1':'Cookidoo — organiser et planifier','2':'WordPress — compositions synchronisées','3':'Hermes — système de skills','4':'Hermes — lecture de documents'}
 main=src.split('## Sources')[0]
@@ -13,7 +19,7 @@ main=re.sub(r'\[(\d+)\]',lambda m:f'<sup><a href="#source-{m[1]}" aria-label="So
 md=markdown.Markdown(extensions=['toc','extra'])
 body=md.convert(main)
 toc='<ul>'+''.join(f'<li><a href="#{anchor}">{label}</a></li>' for anchor,label in re.findall(r'<h2 id="([^"]+)">(.*?)</h2>',body))+'<li><a href="#sources">Sources</a></li></ul>'
-body += '<section id="sources"><h2>Sources</h2><ol>'+''.join(f'<li id="source-{n}"><a href="{html.escape(url)}">{names[n]}</a></li>' for n,url in links.items())+'</ol></section>'
+body += '<section id="sources"><h2>Sources</h2><ol>'+''.join(f'<li id="source-{n}"><a href="{html.escape(url)}">{html.escape(url)}</a></li>' for n,url in links.items())+'</ol></section>'
 css='''
 :root{color-scheme:light dark;--bg:#f7f5ef;--ink:#242723;--muted:#5b615a;--line:#d3d7cd;--accent:#286046;--panel:#eeeee6}
 :root[data-theme=dark]{--bg:#191d1b;--ink:#e8ece7;--muted:#b3bcb2;--line:#3e4840;--accent:#9bcfae;--panel:#222923}
@@ -24,6 +30,8 @@ css='''
 script='''(()=>{const b=document.getElementById('theme');let t;try{t=localStorage.getItem('ia-weekly-theme')}catch(e){}if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;function label(){const dark=document.documentElement.dataset.theme==='dark'||(!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches);b.textContent=dark?'Mode clair':'Mode sombre';return dark}label();b.addEventListener('click',()=>{let t=label()?'light':'dark';document.documentElement.dataset.theme=t;try{localStorage.setItem('ia-weekly-theme',t)}catch(e){}label()})})()'''
 page=f'''<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="IA-weekly n°001 : gagner du temps avec Cookidoo, WordPress et Trinity. Une veille pratique qui évolue avec vos usages."><meta name="edition" content="001-2026-11-08"><title>IA-weekly 001 — Moins décider, moins répéter</title><style>{css}</style></head><body><a class="skip" href="#lecture">Aller au contenu</a><div class="wrap"><header class="masthead"><a class="brand" href="./">IA-WEEKLY</a><button id="theme" type="button">Mode sombre</button></header><div class="intro">Le brief des usages IA · Édition pilote · 08.11.2026</div><div class="layout"><nav aria-label="Sommaire" class="contents"><details open><summary>Dans ce numéro</summary>{toc}</details></nav><main id="lecture"><article>{body}</article></main></div><footer>Une veille préparée avec Trinity, centrée sur le temps gagné.<br><a href="editions/001.md">Version Markdown</a><a href="https://github.com/niko31820/IA-weekly">Dépôt GitHub</a><a href="#lecture">Retour au début</a></footer></div><script>{script}</script></body></html>'''
+page=page.replace('IA-weekly 001 — Moins décider, moins répéter',page_title).replace('content="001-2026-11-08"',f'content="{edition}"').replace('IA-weekly n°001 : gagner du temps avec Cookidoo, WordPress et Trinity.',f'IA-weekly n°{edition} : des usages IA pour gagner du temps.').replace('Le brief des usages IA · Édition pilote · 08.11.2026',f'Le brief des usages IA · {date_label}').replace('href="editions/001.md"',f'href="editions/{edition}.md"')
 (ROOT/'index.html').write_text(page,encoding='utf-8')
+(ROOT/f'editions/{edition}.html').write_text(page.replace('href="./"','href="../"').replace(f'href="editions/{edition}.md"',f'href="{edition}.md"'),encoding='utf-8')
 (ROOT/'.nojekyll').touch()
 print('Built index.html and editions/001.md')
